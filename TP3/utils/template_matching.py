@@ -6,10 +6,13 @@ import matplotlib.pyplot as plt
 
 def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method, threshold, debug=False):
 
+    canny_threshold1 = 50
+    canny_threshold2 = 200
+
     # Converting image & template to grayscale
     image = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
     # detect edges in the grayscale image        
-    edged = cv.Canny(image, 50, 200)
+    edged = cv.Canny(image, canny_threshold1, canny_threshold2)
     
     template = cv.cvtColor(template_bgr, cv.COLOR_BGR2GRAY)
 
@@ -33,7 +36,7 @@ def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, m
         # # improving template_resized contrast
         # template_resized = cv.equalizeHist(template_resized)
 
-        template_resized = cv.Canny(template_resized, 50, 200)
+        template_resized = cv.Canny(template_resized, canny_threshold1, canny_threshold2)
 
         # matching to find the template in the image
         result = cv.matchTemplate(edged, template_resized, eval(method))
@@ -74,14 +77,31 @@ def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, m
 
 
 
-def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method, debug=False):
+def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method, canny_threshold1, canny_threshold2, debug=False):
+
+    # canny_threshold1 = 350
+    # canny_threshold2 = 400
 
     # Converting image & template to grayscale
     image = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
-    # detect edges in the grayscale image        
-    edged = cv.Canny(image, 50, 200)
+    # detect edges in the grayscale image
+    image_edged = cv.Canny(image, canny_threshold1, canny_threshold2)
     
     template = cv.cvtColor(template_bgr, cv.COLOR_BGR2GRAY)
+    # detect edges in the grayscale image
+    template_edged = cv.Canny(template, canny_threshold1, canny_threshold2)
+
+    # ## Preprocessing ###############
+    # template = cv.GaussianBlur(template, (5, 5), 0)
+    # edged = cv.GaussianBlur(edged, (5, 5), 0)
+
+    # template = cv.normalize(template, None, 0, 255, cv.NORM_MINMAX)
+    # edged = cv.normalize(edged, None, 0, 255, cv.NORM_MINMAX)
+
+    # template = cv.equalizeHist(template)
+    # edged = cv.equalizeHist(edged)
+
+    # ################################
 
     # found keeps track of the region and scale of the image with the best match.
     # found initialization
@@ -89,31 +109,33 @@ def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method
 
     # image & template dimensions
     image_height, image_width = image.shape
-    template_height, template_width = template.shape
+    template_height, template_width = template_edged.shape
 
     # scale the template to the image size without losing aspect ratio
     scaling_factor = min(image_width / template_width, image_height / template_height)
-    template = cv.resize(template, None, fx=scaling_factor, fy=scaling_factor)
+    template_edged = cv.resize(template_edged, None, fx=scaling_factor, fy=scaling_factor)
 
     # loop over the scales of the image
     for scale in np.linspace(0.2, 1.0, 20)[::-1]:
-        template_resized = cv.resize(template, (int(template.shape[1] * scale), int(template.shape[0] * scale)))
+        
+        template_resized = cv.resize(template_edged, (int(template_edged.shape[1] * scale), int(template_edged.shape[0] * scale)))
         tH, tW = template_resized.shape
 
         # # improving template_resized contrast
         # template_resized = cv.equalizeHist(template_resized)
 
-        template_resized = cv.Canny(template_resized, 50, 200)
+        # applying canny BEFORE
+        # template_resized = cv.Canny(template_resized, canny_threshold1, canny_threshold2)
 
         # matching to find the template in the image
-        result = cv.matchTemplate(edged, template_resized, eval(method))
+        result = cv.matchTemplate(image_edged, template_resized, eval(method))
         
         (_, maxVal, _, maxLoc) = cv.minMaxLoc(result)
 
         # check to see if the iteration should be visualized
         if debug:
             # draw a bounding box around the detected region
-            clone = np.dstack([edged, edged, edged])
+            clone = np.dstack([image_edged, image_edged, image_edged])
             cv.rectangle(clone, (maxLoc[0], maxLoc[1]), (maxLoc[0] + tW, maxLoc[1] + tH), (0, 0, 255), 2)
             cv.putText(clone, f"maxVal: {maxVal}", (10,20), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             maxVal_found, _, _, _ = found
