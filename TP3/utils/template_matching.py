@@ -44,7 +44,7 @@ def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, m
     template_edged = cv.resize(template_edged, None, fx=scaling_factor, fy=scaling_factor)
 
     # loop over the scales of the image
-    for scale in np.linspace(0.05, 1.0, 20)[::-1]:
+    for scale in np.linspace(0.1, 1.0, 20)[::-1]:
         
         template_resized = cv.resize(template_edged, (int(template_edged.shape[1] * scale), int(template_edged.shape[0] * scale)))
         tH_temp, tW_temp = template_resized.shape
