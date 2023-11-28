@@ -33,7 +33,7 @@ def histogram_3D_hsv_plot(img_color):
 
 def histogram_bgr_plot(img_color):
 
-    fig, axs = plt.subplots(1, 3, figsize=(10, 5))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
     b, g, r = cv.split(img_color)
 

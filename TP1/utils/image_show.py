@@ -66,6 +66,26 @@ def pyplot_image_compare(image1, image2, title1='Image 1', title2='Image 2'):
     plt.show()
 
 
+
+def pyplot_bgr_image_channels(img_color):
+
+    b, g, r = cv.split(img_color)
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+    axs[0].imshow(b, cmap='gray')
+    axs[0].set_title('Blue Channel')
+
+    axs[1].imshow(g, cmap='gray')
+    axs[1].set_title('Green Channel')
+
+    axs[2].imshow(r, cmap='gray')
+    axs[2].set_title('Red Channel')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 def pyplot_hsv_image_channels(img_color):
 
     img_HSV = cv.cvtColor(img_color, cv.COLOR_BGR2HSV)
