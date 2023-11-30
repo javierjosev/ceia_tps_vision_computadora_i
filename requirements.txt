@@ -4,3 +4,4 @@ cv2
 mathplotlib
 ipympl
 scikit-image
+opencv-contrib-python

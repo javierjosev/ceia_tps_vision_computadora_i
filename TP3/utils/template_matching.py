@@ -8,7 +8,13 @@ from utils import image_utils
 
 def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method, canny_threshold1, canny_threshold2, min_resolution_coeff, debug=False):
 
-     # Converting image to grayscale
+    image_temp_scale = 0.5
+    image_temp_max_ratio = 3
+
+    brisque_scale = 2
+    brisque_min_score = 25
+
+    # Converting image to grayscale
     image = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
     # Converting template to grayscale
     template = cv.cvtColor(template_bgr, cv.COLOR_BGR2GRAY)
@@ -18,18 +24,16 @@ def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method
     template_height, template_width = template.shape
 
     # Scaling and quality corrections
-    # If the relation between the image/template is more than 3 times, the image size is reduced by half
-    fm_scale_min = 0.5
-    if image_width/template_width > 3:
-        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * fm_scale_min), int(image_bgr.shape[0] * fm_scale_min)), interpolation=cv.INTER_LINEAR)
-        image = cv.resize(image, (int(image.shape[1] * fm_scale_min), int(image.shape[0] * fm_scale_min)), interpolation=cv.INTER_LINEAR)
+    # If the relation between the image/template is more than image_temp_max_ratio times, the image is scaled by image_temp_scale
+    if image_width/template_width > image_temp_max_ratio:
+        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * image_temp_scale), int(image_bgr.shape[0] * image_temp_scale)), interpolation=cv.INTER_LINEAR)
+        image = cv.resize(image, (int(image.shape[1] * image_temp_scale), int(image.shape[0] * image_temp_scale)), interpolation=cv.INTER_LINEAR)
         image_height, image_width = image.shape
-    # If the ACM quality is less than 0.7, the image size is doubled
-    fm_scale_max = 2
-    image_qual_acm = image_utils.absolute_central_moment(image)
-    if image_qual_acm < 0.7:
-        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * fm_scale_max), int(image_bgr.shape[0] * fm_scale_max)), interpolation=cv.INTER_LINEAR)
-        image = cv.resize(image, (int(image.shape[1] * fm_scale_max), int(image.shape[0] * fm_scale_max)), interpolation=cv.INTER_LINEAR)
+    # If the BRISQUE quality is less than brisque_min_score, the image size scaled by brisque_scale
+    brisque_score, _, _, _ = cv.quality.QualityBRISQUE_compute(image, "utils/brisque_model_live.yml", "utils/brisque_range_live.yml")
+    if brisque_score < brisque_min_score:
+        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * brisque_scale), int(image_bgr.shape[0] * brisque_scale)), interpolation=cv.INTER_LINEAR)
+        image = cv.resize(image, (int(image.shape[1] * brisque_scale), int(image.shape[0] * brisque_scale)), interpolation=cv.INTER_LINEAR)
         image_height, image_width = image.shape
 
     ## Preprocessing image ###############
@@ -60,12 +64,15 @@ def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method
     for scale in np.linspace(0.1, 1.0, 20)[::-1]:
         
         template_resized = cv.resize(template_edged, (int(template_edged.shape[1] * scale), int(template_edged.shape[0] * scale)))
-        tH, tW = template_resized.shape
+        tH_temp, tW_temp = template_resized.shape
 
         # Breaking out the for loop because of insufficient template resolution. As the image is scaled without losing aspect ratio
         # we can use width or height to calculate the coefficient
-        resolution_coeff = tW/template_width
-        if resolution_coeff < min_resolution_coeff:
+        resolution_coeff = tW_temp/template_width
+        if resolution_coeff > min_resolution_coeff:
+            tH = tH_temp
+            tW = tW_temp
+        else:
             break
 
         # matching to find the template in the image
@@ -82,6 +89,7 @@ def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method
             maxVal_found, _, _, _ = found
             cv.putText(clone, f"maxVal found: {maxVal_found}", (10,40), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             cv.putText(clone, f"Scaling factor: {scale}", (10,60), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            cv.putText(clone, f"Resolution coeff: {resolution_coeff}", (10,100), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             cv.imshow(f"Visualizing iteration", clone)
             cv.imshow("Resized template", template_resized)
             cv.waitKey(0)
@@ -95,16 +103,23 @@ def template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method
     (maxVal, maxLoc, tW, tH) = found
     clone_result = np.dstack(cv.split(image_bgr))
     cv.rectangle(clone_result, (maxLoc[0], maxLoc[1]), (maxLoc[0] + tW, maxLoc[1] + tH), (255, 0, 0), 3)
-    cv.putText(clone_result, f"maxVal found: {maxVal}", (maxLoc[0], maxLoc[1]+15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+    cv.putText(clone_result, f"maxVal found: {round(maxVal,6)}", (maxLoc[0], maxLoc[1]+15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     
     image_utils.pyplot_image_show(clone_result)
-    # cv.imshow(f"Visualizing Result", clone_result)
-    # cv.waitKey(0)
-    # cv.destroyAllWindows()
+    if debug:
+        cv.imshow(f"Visualizing Result", clone_result)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
 
 
 
 def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, method, canny_threshold1, canny_threshold2, min_resolution_coeff, threshold, debug=False):
+
+    image_temp_scale = 0.5
+    image_temp_max_ratio = 3
+
+    brisque_scale = 2
+    brisque_min_score = 25
 
     # Converting image to grayscale
     image = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
@@ -116,18 +131,16 @@ def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, m
     template_height, template_width = template.shape
 
     # Scaling and quality corrections
-    # If the relation between the image/template is more than 3 times, the image size is reduced by half
-    fm_scale_min = 0.5
-    if image_width/template_width > 3:
-        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * fm_scale_min), int(image_bgr.shape[0] * fm_scale_min)), interpolation=cv.INTER_LINEAR)
-        image = cv.resize(image, (int(image.shape[1] * fm_scale_min), int(image.shape[0] * fm_scale_min)), interpolation=cv.INTER_LINEAR)
+    # If the relation between the image/template is more than image_temp_max_ratio times, the image is scaled by image_temp_scale
+    if image_width/template_width > image_temp_max_ratio:
+        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * image_temp_scale), int(image_bgr.shape[0] * image_temp_scale)), interpolation=cv.INTER_LINEAR)
+        image = cv.resize(image, (int(image.shape[1] * image_temp_scale), int(image.shape[0] * image_temp_scale)), interpolation=cv.INTER_LINEAR)
         image_height, image_width = image.shape
-    # If the ACM quality is less than 0.7, the image size is doubled
-    fm_scale_max = 2
-    image_qual_acm = image_utils.absolute_central_moment(image)
-    if image_qual_acm < 0.7:
-        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * fm_scale_max), int(image_bgr.shape[0] * fm_scale_max)), interpolation=cv.INTER_LINEAR)
-        image = cv.resize(image, (int(image.shape[1] * fm_scale_max), int(image.shape[0] * fm_scale_max)), interpolation=cv.INTER_LINEAR)
+    # If the BRISQUE quality is less than brisque_min_score, the image size scaled by brisque_scale
+    brisque_score, _, _, _ = cv.quality.QualityBRISQUE_compute(image, "utils/brisque_model_live.yml", "utils/brisque_range_live.yml")
+    if brisque_score < brisque_min_score:
+        image_bgr = cv.resize(image_bgr, (int(image_bgr.shape[1] * brisque_scale), int(image_bgr.shape[0] * brisque_scale)), interpolation=cv.INTER_LINEAR)
+        image = cv.resize(image, (int(image.shape[1] * brisque_scale), int(image.shape[0] * brisque_scale)), interpolation=cv.INTER_LINEAR)
         image_height, image_width = image.shape
 
     ## Preprocessing image ###############
@@ -182,8 +195,6 @@ def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, m
             maxVal_found, _, _, _ = found
             cv.putText(clone, f"maxVal found: {maxVal_found}", (10,40), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             cv.putText(clone, f"Scaling factor: {scale}", (10,60), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            template_resized_acm = image_utils.absolute_central_moment(template_resized)
-            cv.putText(clone, f"ACM: {template_resized_acm}", (10,80), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             cv.putText(clone, f"Resolution coeff: {resolution_coeff}", (10,100), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             cv.imshow(f"Visualizing iteration", clone)
             cv.imshow("Resized template", template_resized)
@@ -210,16 +221,18 @@ def mult_template_matching_canning_with_temp_resizing(template_bgr, image_bgr, m
     boxes = image_utils.non_max_suppression(np.array(boxes)) 
     # loop over the final bounding boxes 
     for (x1, y1, x2, y2) in boxes: 
-        # draw the bounding box on the image 
-        cv.rectangle(clone_result, (x1, y1), (x2, y2), (255, 0, 0), 3) 
-
+        # draw the bounding box on the image
+        correlation_value = round(float(best_result[y1, x1]),6)
+        cv.rectangle(clone_result, (x1, y1), (x2, y2), (255, 0, 0), 3)
+        cv.putText(clone_result, f"Value found: {correlation_value}", (x1, y1+15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     # if no rectangle is selected because of the threshold, it draws the maximum
     if len(boxes) == 0:
         cv.rectangle(clone_result, (maxLoc[0], maxLoc[1]), (maxLoc[0] + tW, maxLoc[1] + tH), (255, 0, 0), 3)
-        #  cv.putText(clone_result, f"maxVal found: {maxVal}", (maxLoc[0], maxLoc[1]+15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        cv.putText(clone_result, f"Value found: {round(maxVal,6)}", (maxLoc[0], maxLoc[1]+15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
     image_utils.pyplot_image_show(clone_result)
-    # cv.imshow(f"Visualizing Result", clone_result)
-    # cv.waitKey(0)
-    # cv.destroyAllWindows()
+    if debug:
+        cv.imshow(f"Visualizing Result", clone_result)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
 

@@ -15,31 +15,6 @@ def pyplot_image_show(image):
 
     plt.axis('off')  # Oculta los ejes
     plt.show()
-    
-
-
-def absolute_central_moment(image):
-    # Step 1: Calculate the image histogram
-    hist, bins = np.histogram(image.flatten(), bins=256, range=[0, 256])
-
-    # Step 2: Calculate the mean intensity value (u) of the histogram
-    u = np.mean(hist)
-
-    # Unique k gray-level values
-    k_values = np.unique(hist)
-
-    # Step 3: Get the number of gray levels (L)
-    # L = len(k_values)
-
-    # Step 4: Initialize ACMo to zero
-    ACMo = 0
-
-    # Step 5: Calculate ACMo using the formula
-    for k in k_values:
-        Pk = np.count_nonzero(hist == k) / np.sum(hist)  # Relative frequency of the k-th gray-level
-        ACMo += abs(k - u) * Pk
-
-    return ACMo
 
 
 def non_max_suppression(boxes, probs=None, overlapThresh=0.3):
@@ -104,3 +79,4 @@ def non_max_suppression(boxes, probs=None, overlapThresh=0.3):
 
 	# return only the bounding boxes that were picked
 	return boxes[pick].astype("int")
+
